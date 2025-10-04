@@ -5,7 +5,7 @@ import hashlib
 from typing import Dict, List, Optional
 from agents.adapters import set_adapter, clear_adapters
 from agents.canary import canary_run as canary_run_base
-from integrations.clickhouse import insert_signature, find_similar_signature
+from integrations.clickhouse import insert_signature, find_similar_signature, write_cta_result
 from integrations.datadog import (
     send_error_rate_metric, send_latency_metric, send_mttr_metric,
     send_incident_metric, send_canary_metric, send_before_after_comparison,
@@ -196,12 +196,13 @@ def save_signature(run_id: str, report: dict, patch: dict):
 
 def execute_cta_workflow(run_id: str, report: dict, before_metrics: Dict[str, float] = None) -> dict:
     """
-    Execute the complete CTA workflow with Datadog integration:
+    Execute the complete CTA workflow with Datadog and ClickHouse integration:
     1. Apply patch
     2. Run canary test
     3. Promote or rollback
-    4. Send before/after comparison metrics
-    5. Save signature for learning
+    4. Send before/after comparison metrics (Datadog)
+    5. Write results to ClickHouse
+    6. Save signature for learning
     """
     workflow_start = time.time()
     
@@ -221,10 +222,14 @@ def execute_cta_workflow(run_id: str, report: dict, before_metrics: Dict[str, fl
     # Step 3: Promote or rollback
     decision_result = promote_or_rollback(canary_result, run_id=run_id)
     
-    # Step 4: Send before/after comparison metrics
+    # Calculate before/after metrics
+    before_error_rate = before_metrics.get("error_rate", 0.0) if before_metrics else 0.0
+    after_error_rate = canary_result.get("error_rate", 1.0)
+    
+    # Step 4: Send before/after comparison metrics to Datadog
     if is_enabled() and before_metrics:
         after_metrics = {
-            "error_rate": canary_result.get("error_rate", 1.0),
+            "error_rate": after_error_rate,
             "latency_ms": canary_result.get("latency_p95_ms", float('inf'))
         }
         send_before_after_comparison(before_metrics, after_metrics, run_id)
@@ -236,12 +241,33 @@ def execute_cta_workflow(run_id: str, report: dict, before_metrics: Dict[str, fl
     # Calculate total MTTR
     total_mttr = time.time() - workflow_start
     
-    # Send MTTR metric
+    # Step 6: Send MTTR metric to Datadog
     if is_enabled():
         method = report.get("method", "unknown")
         send_mttr_metric(total_mttr, run_id, method)
         send_custom_metric("cta.workflow.duration_s", total_mttr, 
                           [f"action:{decision_result['action']}", f"method:{method}"], "histogram")
+    
+    # Step 7: Write complete results to ClickHouse
+    cta_result = {
+        "run_id": run_id,
+        "analysis_method": report.get("method", "unknown"),
+        "confidence": report.get("confidence", 0.0),
+        "primary_cause": report.get("primary_cause_step_id", "unknown"),
+        "patch_applied": patch_result.get("adapter", {}),
+        "canary_error_rate": canary_result.get("error_rate", 1.0),
+        "canary_latency_p95": canary_result.get("latency_p95_ms", 0.0),
+        "decision": decision_result["action"],
+        "mttr_seconds": total_mttr,
+        "before_error_rate": before_error_rate,
+        "after_error_rate": after_error_rate
+    }
+    
+    try:
+        write_cta_result(cta_result)
+    except Exception as e:
+        print(f"Warning: Failed to write CTA result to ClickHouse: {e}")
+        # Don't fail the workflow if ClickHouse write fails
     
     return {
         "status": "completed",
@@ -250,6 +276,7 @@ def execute_cta_workflow(run_id: str, report: dict, before_metrics: Dict[str, fl
         "canary_result": canary_result,
         "decision_result": decision_result,
         "mttr_seconds": total_mttr,
-        "run_id": run_id
+        "run_id": run_id,
+        "clickhouse_written": True  # Indicates attempt was made
     }
 

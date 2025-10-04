@@ -14,7 +14,7 @@ os.environ["CLICKHOUSE_CLOUD_KEY"] = "kRuHI0HdODEAJokHcaTy"
 os.environ["CLICKHOUSE_CLOUD_SECRET"] = "4b1dXAP2m2VaW6vYROdsTDJwMk80Cle9ABGhgAEMlh"
 # Set your ClickHouse Cloud host (e.g., "abc123.us-east-1.aws.clickhouse.cloud")
 # You can find this in your ClickHouse Cloud console
-os.environ["CLICKHOUSE_CLOUD_HOST"] = os.getenv("CLICKHOUSE_CLOUD_HOST", "")
+os.environ["CLICKHOUSE_CLOUD_HOST"] = os.getenv("CLICKHOUSE_CLOUD_HOST", "fmsrfp4z1k.us-central1.gcp.clickhouse.cloud")
 os.environ["CLICKHOUSE_CLOUD_PORT"] = os.getenv("CLICKHOUSE_CLOUD_PORT", "9440")
 
 RAW_CSV_DATA = """LineId,Logrecord,Date,Time,Pid,Level,Component,ADDR,Content,EventId,EventTemplate

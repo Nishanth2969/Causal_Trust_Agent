@@ -15,6 +15,7 @@ except ImportError:
 DATADOG_AVAILABLE = False
 try:
     from datadog import initialize, statsd, api
+    from datadog.api import APIClient
     DATADOG_AVAILABLE = True
 except ImportError:
     pass
@@ -331,130 +332,6 @@ class DatadogClient:
         except Exception as e:
             print(f"✗ Failed to send custom metric: {e}")
             return False
-    
-    def send_clickhouse_log_metrics(self, metrics: dict) -> bool:
-        """Send raw log metrics from ClickHouse logs table"""
-        if not self.enabled:
-            return False
-        
-        try:
-            # Volume metrics
-            if "total_logs" in metrics:
-                statsd.gauge("clickhouse.logs.total", metrics["total_logs"], 
-                           tags=["source:clickhouse", "table:logs"])
-            
-            # By level
-            if "by_level" in metrics:
-                for level, count in metrics["by_level"].items():
-                    statsd.gauge("clickhouse.logs.by_level", count,
-                               tags=["source:clickhouse", f"level:{level}"])
-            
-            # By component
-            if "by_component" in metrics:
-                for component, count in metrics["by_component"].items():
-                    statsd.gauge("clickhouse.logs.by_component", count,
-                               tags=["source:clickhouse", f"component:{component}"])
-            
-            # Error rates
-            if "error_rate" in metrics:
-                statsd.gauge("clickhouse.logs.error_rate", metrics["error_rate"],
-                           tags=["source:clickhouse"])
-            
-            if "warning_rate" in metrics:
-                statsd.gauge("clickhouse.logs.warning_rate", metrics["warning_rate"],
-                           tags=["source:clickhouse"])
-            
-            print(f"✓ Sent ClickHouse log metrics to Datadog")
-            return True
-        except Exception as e:
-            print(f"✗ Failed to send ClickHouse log metrics: {e}")
-            return False
-    
-    def send_clickhouse_audit_metrics(self, metrics: dict) -> bool:
-        """Send audit metrics from ClickHouse audit_results table"""
-        if not self.enabled:
-            return False
-        
-        try:
-            # Audit coverage
-            if "total_evaluated" in metrics:
-                statsd.gauge("clickhouse.audit.total_evaluated", metrics["total_evaluated"],
-                           tags=["source:clickhouse", "table:audit_results"])
-            
-            if "anomalies_detected" in metrics:
-                statsd.gauge("clickhouse.audit.anomalies_detected", metrics["anomalies_detected"],
-                           tags=["source:clickhouse"])
-            
-            if "anomaly_rate" in metrics:
-                statsd.gauge("clickhouse.audit.anomaly_rate", metrics["anomaly_rate"],
-                           tags=["source:clickhouse"])
-            
-            # Performance metrics
-            if "latency_avg" in metrics:
-                statsd.gauge("clickhouse.audit.latency_avg", metrics["latency_avg"],
-                           tags=["source:clickhouse"])
-            
-            if "latency_p95" in metrics:
-                statsd.gauge("clickhouse.audit.latency_p95", metrics["latency_p95"],
-                           tags=["source:clickhouse"])
-            
-            if "latency_p99" in metrics:
-                statsd.gauge("clickhouse.audit.latency_p99", metrics["latency_p99"],
-                           tags=["source:clickhouse"])
-            
-            # Status metrics
-            if "status_4xx" in metrics:
-                statsd.gauge("clickhouse.audit.status_4xx", metrics["status_4xx"],
-                           tags=["source:clickhouse"])
-            
-            if "status_5xx" in metrics:
-                statsd.gauge("clickhouse.audit.status_5xx", metrics["status_5xx"],
-                           tags=["source:clickhouse"])
-            
-            if "error_rate" in metrics:
-                statsd.gauge("clickhouse.audit.error_rate", metrics["error_rate"],
-                           tags=["source:clickhouse"])
-            
-            print(f"✓ Sent ClickHouse audit metrics to Datadog")
-            return True
-        except Exception as e:
-            print(f"✗ Failed to send ClickHouse audit metrics: {e}")
-            return False
-    
-    def send_clickhouse_comparison_metrics(self, metrics: dict) -> bool:
-        """Send comparison metrics between logs and audit_results"""
-        if not self.enabled:
-            return False
-        
-        try:
-            # Detection accuracy
-            if "audit_coverage" in metrics:
-                statsd.gauge("clickhouse.comparison.audit_coverage", metrics["audit_coverage"],
-                           tags=["source:clickhouse"])
-            
-            if "detection_rate" in metrics:
-                statsd.gauge("clickhouse.comparison.detection_rate", metrics["detection_rate"],
-                           tags=["source:clickhouse"])
-            
-            # Component health
-            if "healthy_components" in metrics:
-                statsd.gauge("clickhouse.comparison.healthy_components", metrics["healthy_components"],
-                           tags=["source:clickhouse"])
-            
-            if "unhealthy_components" in metrics:
-                statsd.gauge("clickhouse.comparison.unhealthy_components", metrics["unhealthy_components"],
-                           tags=["source:clickhouse"])
-            
-            # Trend analysis
-            if "anomaly_increase" in metrics:
-                statsd.gauge("clickhouse.comparison.anomaly_increase", metrics["anomaly_increase"],
-                           tags=["source:clickhouse"])
-            
-            print(f"✓ Sent ClickHouse comparison metrics to Datadog")
-            return True
-        except Exception as e:
-            print(f"✗ Failed to send ClickHouse comparison metrics: {e}")
-            return False
 
 # Global client instance
 _client: Optional[DatadogClient] = None
@@ -512,18 +389,6 @@ def send_custom_metric(metric_name: str, value: float,
                       metric_type: str = "gauge") -> bool:
     """Send custom metric to Datadog"""
     return get_client().send_custom_metric(metric_name, value, tags, metric_type)
-
-def send_clickhouse_log_metrics(metrics: dict) -> bool:
-    """Send raw log metrics from ClickHouse logs table"""
-    return get_client().send_clickhouse_log_metrics(metrics)
-
-def send_clickhouse_audit_metrics(metrics: dict) -> bool:
-    """Send audit metrics from ClickHouse audit_results table"""
-    return get_client().send_clickhouse_audit_metrics(metrics)
-
-def send_clickhouse_comparison_metrics(metrics: dict) -> bool:
-    """Send comparison metrics between logs and audit_results"""
-    return get_client().send_clickhouse_comparison_metrics(metrics)
 
 def is_enabled() -> bool:
     """Check if Datadog integration is enabled"""

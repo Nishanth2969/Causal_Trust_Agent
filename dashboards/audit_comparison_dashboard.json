@@ -1,0 +1,424 @@
+{
+  "title": "ClickHouse Logs & Audit Comparison",
+  "description": "Comparison dashboard showing raw logs from ClickHouse vs audited results with anomaly detection",
+  "widgets": [
+    {
+      "id": 0,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.logs.total{*}",
+            "aggregator": "last"
+          }
+        ],
+        "title": "Total Logs",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 0
+      },
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "id": 1,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.total_evaluated{*}",
+            "aggregator": "last"
+          }
+        ],
+        "title": "Audited Logs",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 0
+      },
+      "layout": {
+        "x": 3,
+        "y": 0,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "id": 2,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.comparison.audit_coverage{*}",
+            "aggregator": "last"
+          }
+        ],
+        "title": "Audit Coverage %",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 1,
+        "custom_unit": "%"
+      },
+      "layout": {
+        "x": 6,
+        "y": 0,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "id": 3,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.anomaly_rate{*}",
+            "aggregator": "last"
+          }
+        ],
+        "title": "Anomaly Rate %",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 2,
+        "custom_unit": "%"
+      },
+      "layout": {
+        "x": 9,
+        "y": 0,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "id": 4,
+      "definition": {
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:clickhouse.logs.total{*}",
+            "display_type": "line",
+            "style": {
+              "palette": "blue",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "title": "Log Volume Over Time",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true
+      },
+      "layout": {
+        "x": 0,
+        "y": 2,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "id": 5,
+      "definition": {
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.total_evaluated{*}",
+            "display_type": "line",
+            "style": {
+              "palette": "green",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "title": "Audit Volume Over Time",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true
+      },
+      "layout": {
+        "x": 6,
+        "y": 2,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "id": 6,
+      "definition": {
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.anomalies_detected{*}",
+            "display_type": "bars",
+            "style": {
+              "palette": "warm",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "title": "Anomaly Detection Timeline",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true
+      },
+      "layout": {
+        "x": 0,
+        "y": 5,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "id": 7,
+      "definition": {
+        "type": "toplist",
+        "requests": [
+          {
+            "q": "top(avg:clickhouse.logs.by_component{*} by {component}, 10, 'mean', 'desc')"
+          }
+        ],
+        "title": "Top Components by Log Count",
+        "title_size": "16",
+        "title_align": "left"
+      },
+      "layout": {
+        "x": 6,
+        "y": 5,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "id": 8,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.latency_avg{*}",
+            "aggregator": "avg"
+          }
+        ],
+        "title": "Avg Latency (ms)",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 1,
+        "custom_unit": "ms"
+      },
+      "layout": {
+        "x": 0,
+        "y": 8,
+        "width": 4,
+        "height": 2
+      }
+    },
+    {
+      "id": 9,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.latency_p95{*}",
+            "aggregator": "avg"
+          }
+        ],
+        "title": "P95 Latency (ms)",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 1,
+        "custom_unit": "ms"
+      },
+      "layout": {
+        "x": 4,
+        "y": 8,
+        "width": 4,
+        "height": 2
+      }
+    },
+    {
+      "id": 10,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.latency_p99{*}",
+            "aggregator": "avg"
+          }
+        ],
+        "title": "P99 Latency (ms)",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 1,
+        "custom_unit": "ms"
+      },
+      "layout": {
+        "x": 8,
+        "y": 8,
+        "width": 4,
+        "height": 2
+      }
+    },
+    {
+      "id": 11,
+      "definition": {
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.status_4xx{*}",
+            "display_type": "bars",
+            "style": {
+              "palette": "orange"
+            }
+          },
+          {
+            "q": "avg:clickhouse.audit.status_5xx{*}",
+            "display_type": "bars",
+            "style": {
+              "palette": "red"
+            }
+          }
+        ],
+        "title": "HTTP Status Errors (4xx & 5xx)",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true
+      },
+      "layout": {
+        "x": 0,
+        "y": 10,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "id": 12,
+      "definition": {
+        "type": "query_table",
+        "requests": [
+          {
+            "q": "avg:clickhouse.logs.by_level{*} by {level}",
+            "aggregator": "sum",
+            "alias": "Count"
+          }
+        ],
+        "title": "Log Levels Breakdown",
+        "title_size": "16",
+        "title_align": "left"
+      },
+      "layout": {
+        "x": 6,
+        "y": 10,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "id": 13,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.comparison.healthy_components{*}",
+            "aggregator": "last"
+          }
+        ],
+        "title": "Healthy Components",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 0
+      },
+      "layout": {
+        "x": 0,
+        "y": 13,
+        "width": 6,
+        "height": 2
+      }
+    },
+    {
+      "id": 14,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.comparison.unhealthy_components{*}",
+            "aggregator": "last"
+          }
+        ],
+        "title": "Unhealthy Components",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 0
+      },
+      "layout": {
+        "x": 6,
+        "y": 13,
+        "width": 6,
+        "height": 2
+      }
+    },
+    {
+      "id": 15,
+      "definition": {
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:clickhouse.logs.error_rate{*}",
+            "display_type": "line",
+            "style": {
+              "palette": "red",
+              "line_type": "solid",
+              "line_width": "thick"
+            }
+          },
+          {
+            "q": "avg:clickhouse.audit.error_rate{*}",
+            "display_type": "line",
+            "style": {
+              "palette": "orange",
+              "line_type": "dashed",
+              "line_width": "thick"
+            }
+          }
+        ],
+        "title": "Error Rate Comparison (Logs vs Audit)",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true
+      },
+      "layout": {
+        "x": 0,
+        "y": 15,
+        "width": 12,
+        "height": 3
+      }
+    },
+    {
+      "id": 16,
+      "definition": {
+        "type": "note",
+        "content": "## ClickHouse Logs & Audit Comparison Dashboard\n\nThis dashboard compares:\n- **Raw Logs** from `logs` table\n- **Audit Results** from `audit_results` table\n\n### Key Metrics:\n- **Audit Coverage**: % of logs that were audited\n- **Anomaly Rate**: % of audited logs flagged as anomalies\n- **Detection Rate**: Effectiveness of anomaly detection\n\n### Data Sources:\n- ClickHouse Cloud\n- Synced every 5 minutes via `sync_clickhouse_to_datadog.py`",
+        "background_color": "blue",
+        "font_size": "14",
+        "text_align": "left",
+        "show_tick": false,
+        "tick_pos": "50%",
+        "tick_edge": "left"
+      },
+      "layout": {
+        "x": 0,
+        "y": 18,
+        "width": 12,
+        "height": 3
+      }
+    }
+  ],
+  "template_variables": [],
+  "layout_type": "free",
+  "is_read_only": false,
+  "notify_list": [],
+  "reflow_type": "fixed"
+}

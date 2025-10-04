@@ -1,0 +1,141 @@
+{
+  "title": "ClickHouse Audit Monitoring",
+  "description": "Simple dashboard for ClickHouse logs and audit results comparison",
+  "widgets": [
+    {
+      "id": 1,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.logs.total{*}",
+            "aggregator": "last"
+          }
+        ],
+        "title": "Total Logs",
+        "precision": 0
+      },
+      "layout": {"x": 0, "y": 0, "width": 24, "height": 12}
+    },
+    {
+      "id": 2,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.total_evaluated{*}",
+            "aggregator": "last"
+          }
+        ],
+        "title": "Audited Logs",
+        "precision": 0
+      },
+      "layout": {"x": 25, "y": 0, "width": 24, "height": 12}
+    },
+    {
+      "id": 3,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.comparison.audit_coverage{*}",
+            "aggregator": "last"
+          }
+        ],
+        "title": "Audit Coverage %",
+        "precision": 1,
+        "custom_unit": "%"
+      },
+      "layout": {"x": 50, "y": 0, "width": 24, "height": 12}
+    },
+    {
+      "id": 4,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.anomaly_rate{*}",
+            "aggregator": "last"
+          }
+        ],
+        "title": "Anomaly Rate %",
+        "precision": 2,
+        "custom_unit": "%"
+      },
+      "layout": {"x": 75, "y": 0, "width": 24, "height": 12}
+    },
+    {
+      "id": 5,
+      "definition": {
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:clickhouse.logs.total{*}",
+            "display_type": "line"
+          }
+        ],
+        "title": "Log Volume Over Time"
+      },
+      "layout": {"x": 0, "y": 13, "width": 49, "height": 15}
+    },
+    {
+      "id": 6,
+      "definition": {
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.total_evaluated{*}",
+            "display_type": "line"
+          }
+        ],
+        "title": "Audit Volume Over Time"
+      },
+      "layout": {"x": 50, "y": 13, "width": 49, "height": 15}
+    },
+    {
+      "id": 7,
+      "definition": {
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.anomalies_detected{*}",
+            "display_type": "bars"
+          }
+        ],
+        "title": "Anomalies Detected"
+      },
+      "layout": {"x": 0, "y": 29, "width": 49, "height": 15}
+    },
+    {
+      "id": 8,
+      "definition": {
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:clickhouse.audit.latency_avg{*}"
+          }
+        ],
+        "title": "Average Latency (ms)",
+        "precision": 1,
+        "custom_unit": "ms"
+      },
+      "layout": {"x": 50, "y": 29, "width": 49, "height": 15}
+    },
+    {
+      "id": 9,
+      "definition": {
+        "type": "note",
+        "content": "## ClickHouse Audit Monitoring\n\nThis dashboard monitors:\n- Raw logs from ClickHouse `logs` table\n- Audit results from `audit_results` table\n- Anomaly detection metrics\n\nData synced every 5 minutes",
+        "background_color": "blue",
+        "font_size": "14",
+        "text_align": "left"
+      },
+      "layout": {"x": 0, "y": 45, "width": 99, "height": 10}
+    }
+  ],
+  "template_variables": [],
+  "layout_type": "free",
+  "is_read_only": false,
+  "notify_list": []
+}
+

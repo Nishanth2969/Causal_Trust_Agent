@@ -2,6 +2,7 @@ import json
 import os
 import time
 from trace.store import load_events, get_run, save_metric
+from integrations.clickhouse import fetch_logs_from_cloud
 from integrations.datadog import send_incident_metric, send_custom_metric, is_enabled
 from dotenv import load_dotenv
 
@@ -128,7 +129,24 @@ def cta_analyze(run_id, failure_text) -> dict:
     
     t0 = time.time()
     
-    events = load_events(run_id)
+    # Try to load events from ClickHouse first, fallback to SQLite
+    use_clickhouse = os.getenv("USE_CLICKHOUSE_FOR_CTA", "false").lower() == "true"
+    
+    if use_clickhouse:
+        # Load from ClickHouse (trace events should be stored there)
+        table_name = os.getenv("CLICKHOUSE_TRACE_TABLE", "trace_events")
+        try:
+            events = fetch_logs_from_cloud(table_name, limit=1000, filters={"run_id": run_id})
+            if not events:
+                # Fallback to SQLite if no events found
+                events = load_events(run_id)
+        except Exception as e:
+            print(f"Failed to load events from ClickHouse: {e}")
+            events = load_events(run_id)
+    else:
+        # Load from SQLite (legacy behavior)
+        events = load_events(run_id)
+    
     run_info = get_run(run_id)
     
     # Send incident detection metric to Datadog

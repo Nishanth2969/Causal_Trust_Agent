@@ -7,4 +7,5 @@ sqlite-utils
 requests
 pytest
 clickhouse-driver
+datadog
 

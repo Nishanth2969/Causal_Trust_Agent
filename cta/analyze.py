@@ -2,6 +2,7 @@ import json
 import os
 import time
 from trace.store import load_events, get_run, save_metric
+from integrations.datadog import send_incident_metric, send_custom_metric, is_enabled
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -130,6 +131,11 @@ def cta_analyze(run_id, failure_text) -> dict:
     events = load_events(run_id)
     run_info = get_run(run_id)
     
+    # Send incident detection metric to Datadog
+    if is_enabled():
+        send_incident_metric("incident_detected", "analyzing", run_id)
+        send_custom_metric("cta.analysis.started", 1.0, [f"run_id:{run_id}"], "counter")
+    
     cached_fix = check_signature_cache(events)
     if cached_fix:
         analysis_time = time.time() - t0
@@ -140,6 +146,12 @@ def cta_analyze(run_id, failure_text) -> dict:
             adapter_mapping = json.loads(cached_fix["patch_text"])
         except:
             adapter_mapping = {}
+        
+        # Send cached fix metrics to Datadog
+        if is_enabled():
+            send_incident_metric("cached_fix_found", "success", run_id, confidence=0.95)
+            send_custom_metric("cta.analysis.cached_hit", 1.0, 
+                              [f"cause:{cached_fix.get('cause_label', 'unknown')}"], "counter")
         
         return {
             "run_id": run_id,
@@ -169,6 +181,18 @@ def cta_analyze(run_id, failure_text) -> dict:
     analysis_time = time.time() - t0
     save_metric(run_id, "mttr_cta_s", analysis_time)
     save_metric(run_id, "mttr_human_s", 150.0)
+    
+    # Send analysis completion metrics to Datadog
+    if is_enabled():
+        method = report.get("method", "unknown")
+        confidence = report.get("confidence", 0.0)
+        cause = report.get("primary_cause_step_id", "unknown")
+        
+        send_incident_metric("analysis_completed", "success", run_id, confidence=confidence)
+        send_custom_metric("cta.analysis.completed", 1.0, 
+                          [f"method:{method}", f"cause:{cause}", f"confidence:{confidence:.2f}"], "counter")
+        send_custom_metric("cta.analysis.duration_s", analysis_time, 
+                          [f"method:{method}"], "histogram")
     
     report["run_id"] = run_id
     report["analysis_time_s"] = analysis_time

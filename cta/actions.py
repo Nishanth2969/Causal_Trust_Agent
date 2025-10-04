@@ -6,6 +6,11 @@ from typing import Dict, List, Optional
 from agents.adapters import set_adapter, clear_adapters
 from agents.canary import canary_run as canary_run_base
 from integrations.clickhouse import insert_signature, find_similar_signature
+from integrations.datadog import (
+    send_error_rate_metric, send_latency_metric, send_mttr_metric,
+    send_incident_metric, send_canary_metric, send_before_after_comparison,
+    send_custom_metric, is_enabled
+)
 from trace.store import save_metric, get_run
 
 MAX_ERROR_RATE = 0.01
@@ -32,6 +37,9 @@ def apply_patch(run_id: str, report: dict) -> dict:
     adapter_mapping = _parse_adapter_from_report(report)
     
     if not adapter_mapping:
+        # Send incident metric for failed patch parsing
+        if is_enabled():
+            send_incident_metric("patch_parse_failed", "failed", run_id)
         return {
             "status": "no_patch",
             "reason": "Could not parse adapter from report",
@@ -39,6 +47,13 @@ def apply_patch(run_id: str, report: dict) -> dict:
         }
     
     set_adapter(adapter_mapping)
+    
+    # Send incident metric for successful patch application
+    if is_enabled():
+        send_incident_metric("patch_applied", "success", run_id, 
+                           confidence=report.get("confidence", 0.0))
+        send_custom_metric("cta.patches.applied", 1.0, 
+                          [f"adapter:{json.dumps(adapter_mapping)}"], "counter")
     
     return {
         "status": "patched",
@@ -54,9 +69,19 @@ def canary_run_wrapper(run_id: str, N: int = 20) -> dict:
     
     result["duration_s"] = time.time() - t0
     
+    # Send canary metrics to Datadog
+    if is_enabled():
+        error_rate = result.get("error_rate", 1.0)
+        latency_p95 = result.get("latency_p95_ms", float('inf'))
+        passed = error_rate <= MAX_ERROR_RATE and latency_p95 <= MAX_P95_LATENCY_MS
+        
+        send_canary_metric(passed, error_rate, latency_p95, run_id)
+        send_custom_metric("cta.canary.duration_s", result["duration_s"], 
+                          [f"passed:{str(passed).lower()}"], "histogram")
+    
     return result
 
-def promote_or_rollback(canary_result: dict, thresholds: dict = None) -> dict:
+def promote_or_rollback(canary_result: dict, thresholds: dict = None, run_id: str = None) -> dict:
     if thresholds is None:
         thresholds = {
             "max_error_rate": MAX_ERROR_RATE,
@@ -70,6 +95,12 @@ def promote_or_rollback(canary_result: dict, thresholds: dict = None) -> dict:
     max_p95_latency = thresholds.get("max_p95_latency_ms", MAX_P95_LATENCY_MS)
     
     if error_rate <= max_error_rate and latency_p95 <= max_p95_latency:
+        # Send promotion metrics to Datadog
+        if is_enabled():
+            send_incident_metric("fix_promoted", "success", run_id)
+            send_custom_metric("cta.promotions.success", 1.0, 
+                              [f"error_rate:{error_rate:.3f}", f"latency_p95:{latency_p95:.0f}"], "counter")
+        
         return {
             "action": "promote",
             "reason": canary_result.get("reason", "All checks passed"),
@@ -86,6 +117,12 @@ def promote_or_rollback(canary_result: dict, thresholds: dict = None) -> dict:
             reasons.append(f"Error rate {error_rate:.2%} exceeds {max_error_rate:.2%}")
         if latency_p95 > max_p95_latency:
             reasons.append(f"P95 latency {latency_p95:.0f}ms exceeds {max_p95_latency}ms")
+        
+        # Send rollback metrics to Datadog
+        if is_enabled():
+            send_incident_metric("fix_rollback", "failed", run_id)
+            send_custom_metric("cta.rollbacks.count", 1.0, 
+                              [f"error_rate:{error_rate:.3f}", f"latency_p95:{latency_p95:.0f}"], "counter")
         
         return {
             "action": "rollback",
@@ -151,4 +188,68 @@ def save_signature(run_id: str, report: dict, patch: dict):
     }
     
     insert_signature(signature)
+    
+    # Send signature saved metric to Datadog
+    if is_enabled():
+        send_custom_metric("cta.signatures.saved", 1.0, 
+                          [f"cause:{cause_label}", f"confidence:{report.get('confidence', 0.0):.2f}"], "counter")
+
+def execute_cta_workflow(run_id: str, report: dict, before_metrics: Dict[str, float] = None) -> dict:
+    """
+    Execute the complete CTA workflow with Datadog integration:
+    1. Apply patch
+    2. Run canary test
+    3. Promote or rollback
+    4. Send before/after comparison metrics
+    5. Save signature for learning
+    """
+    workflow_start = time.time()
+    
+    # Step 1: Apply patch
+    patch_result = apply_patch(run_id, report)
+    if patch_result["status"] != "patched":
+        return {
+            "status": "failed",
+            "reason": "Patch application failed",
+            "patch_result": patch_result,
+            "run_id": run_id
+        }
+    
+    # Step 2: Run canary test
+    canary_result = canary_run_wrapper(run_id, N=20)
+    
+    # Step 3: Promote or rollback
+    decision_result = promote_or_rollback(canary_result, run_id=run_id)
+    
+    # Step 4: Send before/after comparison metrics
+    if is_enabled() and before_metrics:
+        after_metrics = {
+            "error_rate": canary_result.get("error_rate", 1.0),
+            "latency_ms": canary_result.get("latency_p95_ms", float('inf'))
+        }
+        send_before_after_comparison(before_metrics, after_metrics, run_id)
+    
+    # Step 5: Save signature if promoted
+    if decision_result["action"] == "promote":
+        save_signature(run_id, report, patch_result)
+    
+    # Calculate total MTTR
+    total_mttr = time.time() - workflow_start
+    
+    # Send MTTR metric
+    if is_enabled():
+        method = report.get("method", "unknown")
+        send_mttr_metric(total_mttr, run_id, method)
+        send_custom_metric("cta.workflow.duration_s", total_mttr, 
+                          [f"action:{decision_result['action']}", f"method:{method}"], "histogram")
+    
+    return {
+        "status": "completed",
+        "action": decision_result["action"],
+        "patch_result": patch_result,
+        "canary_result": canary_result,
+        "decision_result": decision_result,
+        "mttr_seconds": total_mttr,
+        "run_id": run_id
+    }
 

@@ -1,0 +1,162 @@
+{
+  "title": "CTA Autonomous Remediation",
+  "description": "Monitor CTA agent performance and autonomous remediation",
+  "widgets": [
+    {
+      "definition": {
+        "title": "Error Rate: Before vs After Fix",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:cta.error_rate{phase:before_fix}",
+            "display_type": "line",
+            "style": {
+              "palette": "warm"
+            }
+          },
+          {
+            "q": "avg:cta.error_rate{phase:after_fix}",
+            "display_type": "line",
+            "style": {
+              "palette": "green"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Latency: Before vs After Fix",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:cta.latency_ms{phase:before_fix}",
+            "display_type": "line",
+            "style": {
+              "palette": "warm"
+            }
+          },
+          {
+            "q": "avg:cta.latency_ms{phase:after_fix}",
+            "display_type": "line",
+            "style": {
+              "palette": "green"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Mean Time To Recovery (MTTR)",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:cta.mttr_seconds{*} by {method}",
+            "display_type": "line",
+            "style": {
+              "palette": "dog_classic"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Incidents Detected",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "sum:cta.incidents.detected{*}.as_count()",
+            "aggregator": "sum"
+          }
+        ],
+        "autoscale": true,
+        "precision": 0
+      }
+    },
+    {
+      "definition": {
+        "title": "Canary Test Pass Rate",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "sum:cta.canary.tests{passed:true}.as_count()",
+            "display_type": "bars",
+            "style": {
+              "palette": "green"
+            }
+          },
+          {
+            "q": "sum:cta.canary.tests{passed:false}.as_count()",
+            "display_type": "bars",
+            "style": {
+              "palette": "warm"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Total Fixes Promoted",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "sum:cta.promotions.success{*}.as_count()",
+            "aggregator": "sum"
+          }
+        ],
+        "autoscale": true,
+        "precision": 0
+      }
+    },
+    {
+      "definition": {
+        "title": "Analysis Method Usage",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "sum:cta.analysis.completed{*} by {method}.as_count()",
+            "display_type": "bars",
+            "style": {
+              "palette": "dog_classic"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Workflow Duration",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "avg:cta.workflow.duration_s{*} by {action}",
+            "display_type": "line",
+            "style": {
+              "palette": "dog_classic"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "layout_type": "ordered"
+}

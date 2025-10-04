@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Run {{ run.id }} - CTA{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="/">Home</a> / <span>{{ run.id }}</span>
+</div>
+
+<div class="metrics-strip">
+    <div class="metric">
+        <label>Status</label>
+        <span class="badge badge-{{ run.status }}">{{ run.status or 'running' }}</span>
+    </div>
+    <div class="metric">
+        <label>Mode</label>
+        <span class="badge badge-{{ run.mode }}">{{ run.mode }}</span>
+    </div>
+    <div class="metric">
+        <label>Steps</label>
+        <span>{{ step_count }}</span>
+    </div>
+    <div class="metric">
+        <label>Total Latency</label>
+        <span>{{ total_latency }}ms</span>
+    </div>
+    <div class="metric">
+        <label>MTTR (Human)</label>
+        <span>{{ "%.2f"|format(run.mttr_human_s) if run.mttr_human_s else '-' }}s</span>
+    </div>
+    <div class="metric">
+        <label>MTTR (CTA)</label>
+        <span>{{ "%.2f"|format(run.mttr_cta_s) if run.mttr_cta_s else '-' }}s</span>
+    </div>
+</div>
+
+{% if run.fail_reason %}
+<div class="alert alert-error">
+    <strong>Failure:</strong> {{ run.fail_reason }}
+</div>
+{% endif %}
+
+<div class="panels">
+    <div class="panel">
+        <h2>Trace Events</h2>
+        {% include 'trace_panel.html' %}
+    </div>
+    
+    <div class="panel">
+        <h2>CTA Analysis</h2>
+        <div id="cta-panel">
+            {% if run.status == 'failed' %}
+            <button 
+                hx-post="/run/{{ run.id }}/cta" 
+                hx-target="#cta-panel"
+                class="btn btn-primary">
+                Run CTA Analysis
+            </button>
+            <p class="help-text">Click to perform root cause analysis on this failed run.</p>
+            {% else %}
+            <p class="empty-state">CTA analysis is only available for failed runs.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

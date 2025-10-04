@@ -1,0 +1,9 @@
+flask
+jinja2
+langgraph
+pydantic
+python-dotenv
+sqlite-utils
+requests
+pytest
+

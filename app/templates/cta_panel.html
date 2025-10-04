@@ -1,0 +1,60 @@
+<div class="cta-report">
+    <div class="report-header">
+        <h3>Root Cause Analysis</h3>
+        <span class="badge badge-{{ report.method }}">{{ report.method|upper }}</span>
+        <span class="confidence">Confidence: {{ "%.0f"|format(report.confidence * 100) }}%</span>
+    </div>
+    
+    <div class="report-section">
+        <h4>Primary Cause</h4>
+        <div class="primary-cause-card">
+            <code>{{ report.primary_cause_step_id }}</code>
+        </div>
+    </div>
+    
+    <div class="report-section">
+        <h4>Symptoms</h4>
+        <ul>
+            {% for symptom in report.symptoms %}
+            <li>{{ symptom }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    
+    <div class="report-section">
+        <h4>Evidence</h4>
+        {% for item in report.evidence %}
+        <div class="evidence-item">
+            <label>Step: <code>{{ item.step_id }}</code></label>
+            <pre>{{ item.excerpt }}</pre>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="report-section">
+        <h4>5-Whys Chain</h4>
+        <ol class="why-chain">
+            {% for why in report.why_chain %}
+            <li>{{ why }}</li>
+            {% endfor %}
+        </ol>
+    </div>
+    
+    <div class="report-section">
+        <h4>Proposed Fix</h4>
+        <div class="fix-proposal">
+            <label>Schema Patch:</label>
+            <pre>{{ report.proposed_fix.tool_schema_patch }}</pre>
+            <label>Test Case:</label>
+            <pre>{{ report.proposed_fix.test_case }}</pre>
+        </div>
+    </div>
+    
+    <div class="report-actions">
+        <form method="POST" action="/run/{{ run_id }}/apply_fix">
+            <button type="submit" class="btn btn-primary">Apply Fix & Rerun</button>
+        </form>
+        <a href="/run/{{ run_id }}/cta.json" class="btn btn-secondary" download>Download JSON</a>
+    </div>
+</div>
+

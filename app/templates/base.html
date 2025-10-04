@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CTA: Trace & Judge{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>CTA: Trace & Judge</h1>
+            <p class="tagline">Causal Trust Agent - Hackathon MVP</p>
+        </div>
+    </header>
+    
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <footer>
+        <div class="container">
+            <p>Deterministic demo: good run, flaky run, CTA diagnosis & patch</p>
+        </div>
+    </footer>
+</body>
+</html>
+

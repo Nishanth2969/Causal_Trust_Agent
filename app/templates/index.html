@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="actions">
+    <h2>Create New Run</h2>
+    <form method="POST" action="/run?mode=good" style="display: inline;">
+        <button type="submit" class="btn btn-success">Run: Good</button>
+    </form>
+    <form method="POST" action="/run?mode=flaky" style="display: inline;">
+        <button type="submit" class="btn btn-warning">Run: Flaky</button>
+    </form>
+    <form method="POST" action="/run?mode=patched" style="display: inline;">
+        <button type="submit" class="btn btn-info">Run: Patched</button>
+    </form>
+</div>
+
+<div class="runs-list">
+    <h2>Recent Runs</h2>
+    {% if runs %}
+    <table>
+        <thead>
+            <tr>
+                <th>Run ID</th>
+                <th>Mode</th>
+                <th>Status</th>
+                <th>Started At</th>
+                <th>MTTR (Human)</th>
+                <th>MTTR (CTA)</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in runs %}
+            <tr>
+                <td><code>{{ run.id }}</code></td>
+                <td><span class="badge badge-{{ run.mode }}">{{ run.mode }}</span></td>
+                <td><span class="badge badge-{{ run.status }}">{{ run.status or 'running' }}</span></td>
+                <td>{{ run.started_at }}</td>
+                <td>{{ "%.2f"|format(run.mttr_human_s) if run.mttr_human_s else '-' }}s</td>
+                <td>{{ "%.2f"|format(run.mttr_cta_s) if run.mttr_cta_s else '-' }}s</td>
+                <td>
+                    <a href="/run/{{ run.id }}" class="btn btn-small">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No runs yet. Create one above or run 'make seed'.</p>
+    {% endif %}
+</div>
+{% endblock %}
+

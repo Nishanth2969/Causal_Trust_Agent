@@ -1,0 +1,56 @@
+<div class="trace-timeline">
+    {% for event in events %}
+    <div class="trace-event event-{{ event.type }}">
+        <div class="event-header">
+            <span class="badge badge-{{ event.type }}">{{ event.type|upper }}</span>
+            {% if event.type == 'step' %}
+                <strong>{{ event.agent }}</strong>
+            {% elif event.type == 'tool' %}
+                <strong>{{ event.tool }}</strong>
+            {% elif event.type == 'error' %}
+                <strong>ERROR</strong>
+            {% endif %}
+            <span class="event-meta">{{ event.latency_ms|default(0) }}ms</span>
+        </div>
+        
+        <details>
+            <summary>Details</summary>
+            <div class="event-details">
+                {% if event.type == 'step' %}
+                    <div class="detail-section">
+                        <label>Step ID:</label>
+                        <code>{{ event.step_id }}</code>
+                    </div>
+                    <div class="detail-section">
+                        <label>Input:</label>
+                        <pre>{{ event.input|tojson(indent=2) }}</pre>
+                    </div>
+                    <div class="detail-section">
+                        <label>Output:</label>
+                        <pre>{{ event.output|tojson(indent=2) }}</pre>
+                    </div>
+                {% elif event.type == 'tool' %}
+                    <div class="detail-section">
+                        <label>Args:</label>
+                        <pre>{{ event.args|tojson(indent=2) }}</pre>
+                    </div>
+                    <div class="detail-section">
+                        <label>Output:</label>
+                        <pre>{{ event.output|tojson(indent=2) }}</pre>
+                    </div>
+                {% elif event.type == 'error' %}
+                    <div class="detail-section">
+                        <label>Message:</label>
+                        <pre>{{ event.message }}</pre>
+                    </div>
+                    <div class="detail-section">
+                        <label>Context:</label>
+                        <pre>{{ event.context|tojson(indent=2) }}</pre>
+                    </div>
+                {% endif %}
+            </div>
+        </details>
+    </div>
+    {% endfor %}
+</div>
+

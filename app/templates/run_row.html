@@ -1,0 +1,12 @@
+<tr>
+    <td><code>{{ run.id }}</code></td>
+    <td><span class="badge badge-{{ run.mode }}">{{ run.mode }}</span></td>
+    <td><span class="badge badge-{{ run.status }}">{{ run.status or 'running' }}</span></td>
+    <td>{{ run.started_at }}</td>
+    <td>{{ "%.2f"|format(run.mttr_human_s) if run.mttr_human_s else '-' }}s</td>
+    <td>{{ "%.2f"|format(run.mttr_cta_s) if run.mttr_cta_s else '-' }}s</td>
+    <td>
+        <a href="/run/{{ run.id }}" class="btn btn-small">View</a>
+    </td>
+</tr>
+

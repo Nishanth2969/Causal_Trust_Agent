@@ -3,5 +3,6 @@ __pycache__/
 *.pyc
 data/runs/*
 data/traces.sqlite
+data/adapter_config.json
 .env
 

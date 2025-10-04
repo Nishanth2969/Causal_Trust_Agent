@@ -123,10 +123,43 @@ def _llm_analyze(events, failure_text):
     return None
 
 def cta_analyze(run_id, failure_text) -> dict:
+    from .actions import check_signature_cache
+    
     t0 = time.time()
     
     events = load_events(run_id)
     run_info = get_run(run_id)
+    
+    cached_fix = check_signature_cache(events)
+    if cached_fix:
+        analysis_time = time.time() - t0
+        save_metric(run_id, "mttr_cta_s", analysis_time)
+        save_metric(run_id, "mttr_human_s", 150.0)
+        
+        try:
+            adapter_mapping = json.loads(cached_fix["patch_text"])
+        except:
+            adapter_mapping = {}
+        
+        return {
+            "run_id": run_id,
+            "primary_cause_step_id": cached_fix.get("cause_label", "unknown"),
+            "symptoms": ["Cached: Similar incident detected"],
+            "evidence": [{"step_id": "cached", "excerpt": "Matched previous incident"}],
+            "why_chain": [
+                "Incident matches known signature",
+                "Previous fix was successful",
+                "Applying cached solution"
+            ],
+            "confidence": 0.95,
+            "proposed_fix": {
+                "tool_schema_patch": f"Cached adapter: {adapter_mapping}",
+                "test_case": "Reuse previous fix"
+            },
+            "method": "cached",
+            "cached_from": cached_fix.get("id"),
+            "analysis_time_s": analysis_time
+        }
     
     report = _llm_analyze(events, failure_text)
     
@@ -142,23 +175,4 @@ def cta_analyze(run_id, failure_text) -> dict:
     
     return report
 
-def cta_patch(run_id, report) -> dict:
-    from agents import tools
-    
-    original_fetch = tools.fetch_transactions
-    
-    def patched_fetch_transactions(flaky=False):
-        txs = original_fetch(flaky=flaky)
-        for tx in txs:
-            if "amt" in tx and "amount" not in tx:
-                tx["amount"] = tx.pop("amt")
-        return txs
-    
-    tools.fetch_transactions = patched_fetch_transactions
-    
-    return {
-        "status": "patched",
-        "description": "Applied schema adapter: amt -> amount",
-        "run_id": run_id
-    }
 

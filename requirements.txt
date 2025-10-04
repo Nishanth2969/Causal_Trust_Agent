@@ -6,4 +6,5 @@ python-dotenv
 sqlite-utils
 requests
 pytest
+clickhouse-driver
 

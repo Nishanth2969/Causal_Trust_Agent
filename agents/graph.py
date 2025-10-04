@@ -34,7 +34,12 @@ def retriever_agent(run_id, mode):
     return {"transactions": txs, "count": len(txs)}
 
 @trace_step("Auditor")
-def auditor_agent(run_id, transactions):
+def auditor_agent(run_id, transactions, use_adapters=True):
+    from .adapters import apply_adapters
+    
+    if use_adapters:
+        transactions = [apply_adapters(tx) for tx in transactions]
+    
     results = []
     error_occurred = False
     
@@ -68,12 +73,12 @@ def auditor_agent(run_id, transactions):
         "error_occurred": error_occurred
     }
 
-def run_pipeline(run_id, mode: str) -> dict:
+def run_pipeline(run_id, mode: str, use_adapters: bool = True) -> dict:
     intake_result = intake_agent(run_id, mode)
     
     retriever_result = retriever_agent(run_id, mode)
     
-    auditor_result = auditor_agent(run_id, retriever_result["transactions"])
+    auditor_result = auditor_agent(run_id, retriever_result["transactions"], use_adapters=use_adapters)
     
     if auditor_result["error_occurred"]:
         status = "failed"

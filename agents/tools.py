@@ -1,14 +1,24 @@
 import random
+import time
 
-def fetch_transactions(flaky=False):
-    txs = [
-        {"id": "T1", "currency": "USD", "amount": 12.0},
-        {"id": "T2", "currency": "USD", "amount": 5.5},
-        {"id": "T3", "currency": "USD", "amount": 33.2},
-    ]
+MERCHANTS = ["Amazon", "Walmart", "Target", "Best Buy", "Costco", "Apple", "Nike"]
+
+def fetch_transactions(flaky=False, count=3):
+    txs = []
+    for i in range(count):
+        tx = {
+            "id": f"T{random.randint(1000, 9999)}",
+            "currency": "USD",
+            "amount": round(random.uniform(5.0, 50.0), 2),
+            "timestamp": time.time(),
+            "merchant": random.choice(MERCHANTS)
+        }
+        txs.append(tx)
+    
     if flaky:
         for t in txs:
             t["amt"] = t.pop("amount")
+    
     return txs
 
 def flag_anomaly(tx):

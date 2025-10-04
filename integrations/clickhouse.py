@@ -91,12 +91,18 @@ class ClickHouseClient:
             )
             response.raise_for_status()
             
+            # INSERT/CREATE queries return empty response on success
+            if not response.text.strip():
+                return []
+            
             if format == "JSONEachRow":
                 lines = response.text.strip().split('\n')
                 return [json.loads(line) for line in lines if line]
             return response.text
         except Exception as e:
-            print(f"ClickHouse Cloud query error: {e}")
+            # Don't print errors for INSERT queries (they return empty)
+            if "INSERT" not in query and "CREATE" not in query:
+                print(f"ClickHouse Cloud query error: {e}")
             return None
     
     def _init_tables(self):
@@ -145,6 +151,93 @@ class ClickHouseClient:
                 )
             except Exception:
                 pass
+    
+    def insert_audit_result(self, audit_result: Dict[str, Any]):
+        """Insert audit result into ClickHouse"""
+        if self.use_cloud and self.cloud_host and not self.client:
+            # Use HTTP Query API to insert into audit_results table
+            try:
+                # Prepare audit result data
+                timestamp = audit_result.get("timestamp", datetime.now().isoformat())
+                event_id = audit_result.get("event_id", "")
+                line_id = audit_result.get("line_id", 0)
+                component = audit_result.get("component", "")
+                level = audit_result.get("level", "")
+                is_anomaly = 1 if audit_result.get("is_anomaly", False) else 0
+                reason = audit_result.get("reason", "")
+                latency_ms = audit_result.get("latency_ms", 0)
+                status = audit_result.get("status", 200)
+                
+                # Create INSERT query
+                query = f"""
+                INSERT INTO audit_results 
+                (timestamp, event_id, line_id, component, level, is_anomaly, reason, latency_ms, status)
+                VALUES 
+                ('{timestamp}', '{event_id}', {line_id}, '{component}', '{level}', {is_anomaly}, '{reason}', {latency_ms}, {status})
+                """
+                
+                result = self._execute_cloud_query(query)
+                # INSERT queries return empty response on success
+                # Only print debug for successful saves (no exception thrown)
+                    
+            except Exception as e:
+                print(f"[WARN] Could not save audit result: {e}")
+        
+        elif self.client:
+            # Use native client
+            try:
+                timestamp = audit_result.get("timestamp", datetime.now())
+                self.client.execute(
+                    """INSERT INTO audit_results 
+                    (timestamp, event_id, line_id, component, level, is_anomaly, reason, latency_ms, status) 
+                    VALUES""",
+                    [(
+                        timestamp,
+                        audit_result.get("event_id", ""),
+                        audit_result.get("line_id", 0),
+                        audit_result.get("component", ""),
+                        audit_result.get("level", ""),
+                        1 if audit_result.get("is_anomaly", False) else 0,
+                        audit_result.get("reason", ""),
+                        audit_result.get("latency_ms", 0),
+                        audit_result.get("status", 200)
+                    )]
+                )
+            except Exception as e:
+                print(f"[WARN] Could not save audit result to native client: {e}")
+    
+    def get_audit_results(self, limit: int = 100, filters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """Fetch audit results from ClickHouse"""
+        if self.use_cloud and self.cloud_host and not self.client:
+            query = "SELECT * FROM audit_results"
+            
+            if filters:
+                conditions = []
+                for key, value in filters.items():
+                    if isinstance(value, str):
+                        conditions.append(f"{key} = '{value}'")
+                    else:
+                        conditions.append(f"{key} = {value}")
+                if conditions:
+                    query += " WHERE " + " AND ".join(conditions)
+            
+            query += f" ORDER BY timestamp DESC LIMIT {limit}"
+            
+            result = self._execute_cloud_query(query)
+            return result if result else []
+        
+        elif self.client:
+            try:
+                query = f"SELECT * FROM audit_results LIMIT {limit}"
+                result = self.client.execute(query, with_column_types=True)
+                rows, columns_with_types = result[0], result[1]
+                column_names = [col[0] for col in columns_with_types]
+                return [dict(zip(column_names, row)) for row in rows]
+            except Exception as e:
+                print(f"[WARN] Could not fetch audit results: {e}")
+                return []
+        
+        return []
     
     def get_recent_events(self, limit: int = 20, table_name: str = None) -> List[Dict[str, Any]]:
         global MOCK_EVENTS_STORE
@@ -303,6 +396,14 @@ def get_client() -> ClickHouseClient:
 
 def insert_event(event: Dict[str, Any]):
     get_client().insert_event(event)
+
+def insert_audit_result(audit_result: Dict[str, Any]):
+    """Insert audit result into ClickHouse"""
+    get_client().insert_audit_result(audit_result)
+
+def get_audit_results(limit: int = 100, filters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    """Fetch audit results from ClickHouse"""
+    return get_client().get_audit_results(limit, filters)
 
 def get_recent_events(limit: int = 20, table_name: str = None) -> List[Dict[str, Any]]:
     return get_client().get_recent_events(limit, table_name)

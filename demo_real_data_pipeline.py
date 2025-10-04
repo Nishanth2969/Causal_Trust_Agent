@@ -3,10 +3,11 @@ import io
 import time
 import re
 import os
+from datetime import datetime
 from agents.tools import evaluate_event
 from agents.failures import inject_drift, get_failure_state
 from agents.adapters import set_adapter, apply_adapters, clear_adapters, get_adapters
-from integrations.clickhouse import insert_event, get_recent_events, fetch_logs_from_cloud
+from integrations.clickhouse import insert_event, get_recent_events, fetch_logs_from_cloud, insert_audit_result, get_audit_results
 
 # Set ClickHouse Cloud credentials
 os.environ["CLICKHOUSE_CLOUD_KEY"] = "kRuHI0HdODEAJokHcaTy"
@@ -144,14 +145,49 @@ print("\n2.1 Intake Agent: Receive events")
 print(f"[OK] Received batch of {len(events)} events")
 
 print("\n2.2 Retriever Agent: Fetch from ClickHouse")
-retrieved = get_recent_events(limit=10)
-print(f"[OK] Retrieved {len(retrieved)} recent events")
+print("   Fetching from audit_results table (agent memory)...")
+retrieved = get_audit_results(limit=10)
+print(f"[OK] Retrieved {len(retrieved)} audit results from memory")
+
+if retrieved:
+    print(f"\n   Agent Memory Summary:")
+    anomaly_count = sum(1 for r in retrieved if r.get('is_anomaly', 0) == 1)
+    print(f"     Historical audits: {len(retrieved)}")
+    print(f"     Past anomalies: {anomaly_count}")
+    print(f"     Anomaly rate: {anomaly_count/len(retrieved)*100:.1f}%")
+    
+    # Show recent pattern
+    components = {}
+    for r in retrieved:
+        comp = r.get('component', 'unknown')
+        components[comp] = components.get(comp, 0) + 1
+    print(f"     Components monitored: {len(components)}")
+else:
+    print("   (No historical memory yet - first run)")
 
 print("\n2.3 Auditor Agent: Evaluate events")
+print("   Using historical memory to inform evaluations...")
 evaluation_results = []
+audit_count = 0
 for evt in events:
     result = evaluate_event(evt)
     evaluation_results.append(result)
+    
+    # Save audit result to ClickHouse
+    audit_result = {
+        "timestamp": datetime.now().isoformat(),
+        "event_id": f"evt_{evt.get('LineId', 0)}_{int(time.time())}",
+        "line_id": evt.get('LineId', 0),
+        "component": evt.get('Component', 'unknown'),
+        "level": evt.get('Level', 'INFO'),
+        "is_anomaly": result['flag'],
+        "reason": result['reason'],
+        "latency_ms": evt.get('latency_ms', 0),
+        "status": evt.get('status', 200)
+    }
+    insert_audit_result(audit_result)
+    audit_count += 1
+    
     if result['flag']:
         print(f"   Event {evt['LineId']}: ANOMALY - {result['reason']}")
 
@@ -159,6 +195,7 @@ success_rate = sum(1 for r in evaluation_results if not r['flag']) / len(evaluat
 print(f"\n[OK] Pipeline Status: SUCCESS")
 print(f"   Total events: {len(evaluation_results)}")
 print(f"   Success rate: {success_rate:.1%}")
+print(f"   Audit results saved: {audit_count}")
 
 print("\n[PHASE 3: INCIDENT - Schema Drift Injection]")
 print("-" * 80)
@@ -318,6 +355,7 @@ print(f"  [OK] Stored in ClickHouse event store")
 
 print("\nPhase 2: Normal Operation")
 print(f"  [OK] 3-agent pipeline (Intake -> Retriever -> Auditor)")
+print(f"  [OK] Retriever uses audit_results as agent memory")
 print(f"  [OK] {success_rate:.0%} success rate")
 
 print("\nPhase 3: Incident Detection")

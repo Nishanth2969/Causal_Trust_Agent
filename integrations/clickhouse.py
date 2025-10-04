@@ -2,6 +2,8 @@ import json
 import os
 from datetime import datetime
 from typing import List, Dict, Any
+import requests
+from requests.auth import HTTPBasicAuth
 
 CLICKHOUSE_AVAILABLE = False
 try:
@@ -16,18 +18,89 @@ class ClickHouseClient:
     def __init__(self):
         self.use_mock = not CLICKHOUSE_AVAILABLE
         self.client = None
+        self.use_cloud = False
+        self.cloud_host = None
+        self.cloud_auth = None
         
-        if not self.use_mock:
+        # Check for ClickHouse Cloud credentials
+        cloud_key = os.getenv("CLICKHOUSE_CLOUD_KEY")
+        cloud_secret = os.getenv("CLICKHOUSE_CLOUD_SECRET")
+        cloud_host = os.getenv("CLICKHOUSE_CLOUD_HOST")
+        cloud_service_id = os.getenv("CLICKHOUSE_SERVICE_ID")
+        cloud_port = int(os.getenv("CLICKHOUSE_CLOUD_PORT", "9440"))
+        
+        # Check if using ClickHouse Cloud Query API (REST endpoint)
+        if cloud_key and cloud_secret and cloud_service_id:
+            # Use ClickHouse Cloud Query API
+            self.use_cloud = True
+            self.use_mock = False
+            self.cloud_host = f"https://queries.clickhouse.cloud/service/{cloud_service_id}/run"
+            self.cloud_auth = HTTPBasicAuth(cloud_key, cloud_secret)
+            print("[OK] Connected to ClickHouse Cloud (Query API)")
+        elif cloud_key and cloud_secret and cloud_host:
+            # Use ClickHouse Cloud with native protocol
+            try:
+                self.client = Client(
+                    host=cloud_host,
+                    port=cloud_port,
+                    user=cloud_key,
+                    password=cloud_secret,
+                    secure=True,
+                    verify=True
+                )
+                # Test connection
+                self.client.execute("SELECT 1")
+                self.use_cloud = True
+                self.use_mock = False
+                print("[OK] Connected to ClickHouse Cloud")
+            except Exception as e:
+                print(f"Failed to connect to ClickHouse Cloud: {e}")
+                print("Will try HTTP interface...")
+                # Fallback to HTTP interface
+                self.use_cloud = True
+                self.use_mock = False
+                self.cloud_host = f"https://{cloud_host}:8443" if not cloud_host.startswith("http") else cloud_host
+                self.cloud_auth = HTTPBasicAuth(cloud_key, cloud_secret)
+        elif not self.use_mock:
+            # Use local ClickHouse
             host = os.getenv("CLICKHOUSE_HOST", "localhost")
             port = int(os.getenv("CLICKHOUSE_PORT", "9000"))
             try:
                 self.client = Client(host=host, port=port)
                 self._init_tables()
-            except Exception:
+            except Exception as e:
+                print(f"Could not connect to local ClickHouse: {e}")
                 self.use_mock = True
     
+    def _execute_cloud_query(self, query: str, format: str = "JSONEachRow"):
+        """Execute query on ClickHouse Cloud via HTTP API"""
+        if not self.use_cloud or not self.cloud_host:
+            return None
+        
+        try:
+            # ClickHouse Cloud Query API format
+            url = f"{self.cloud_host}?format={format}"
+            payload = {"sql": query}
+            headers = {"Content-Type": "application/json"}
+            
+            response = requests.post(
+                url,
+                auth=self.cloud_auth,
+                headers=headers,
+                json=payload
+            )
+            response.raise_for_status()
+            
+            if format == "JSONEachRow":
+                lines = response.text.strip().split('\n')
+                return [json.loads(line) for line in lines if line]
+            return response.text
+        except Exception as e:
+            print(f"ClickHouse Cloud query error: {e}")
+            return None
+    
     def _init_tables(self):
-        if self.use_mock:
+        if self.use_mock or self.use_cloud:
             return
         
         try:
@@ -73,12 +146,61 @@ class ClickHouseClient:
             except Exception:
                 pass
     
-    def get_recent_events(self, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_recent_events(self, limit: int = 20, table_name: str = None) -> List[Dict[str, Any]]:
         global MOCK_EVENTS_STORE
         
         if self.use_mock:
             recent = MOCK_EVENTS_STORE[-limit:]
             return [json.loads(e["payload"]) for e in recent]
+        
+        # Prioritize HTTP API if cloud_host is set (Query API)
+        if self.use_cloud and self.cloud_host and not self.client:
+            # Use HTTP Query API
+            if not table_name:
+                tables_query = "SHOW TABLES"
+                result = self._execute_cloud_query(tables_query, format="TabSeparated")
+                if result:
+                    print(f"Available tables: {result}")
+                return []
+            
+            query = f"SELECT * FROM {table_name} LIMIT {limit}"
+            result = self._execute_cloud_query(query)
+            return result if result else []
+        
+        elif self.use_cloud and self.client:
+            # Use native client for cloud
+            if not table_name:
+                try:
+                    tables = self.client.execute("SHOW TABLES")
+                    print(f"Available tables: {[t[0] for t in tables]}")
+                except Exception as e:
+                    print(f"Could not list tables: {e}")
+                return []
+            
+            try:
+                query = f"SELECT * FROM {table_name} LIMIT {limit}"
+                result = self.client.execute(query, with_column_types=True)
+                
+                # Convert to list of dicts
+                rows, columns_with_types = result[0], result[1]
+                column_names = [col[0] for col in columns_with_types]
+                
+                return [dict(zip(column_names, row)) for row in rows]
+            except Exception as e:
+                print(f"Error fetching from cloud: {e}")
+                return []
+        elif self.use_cloud and self.cloud_host:
+            # Fallback to HTTP interface
+            if not table_name:
+                tables_query = "SHOW TABLES"
+                result = self._execute_cloud_query(tables_query, format="TabSeparated")
+                if result:
+                    print(f"Available tables: {result}")
+                return []
+            
+            query = f"SELECT * FROM {table_name} LIMIT {limit}"
+            result = self._execute_cloud_query(query)
+            return result if result else []
         
         try:
             result = self.client.execute(
@@ -87,6 +209,46 @@ class ClickHouseClient:
             return [json.loads(row[0]) for row in result]
         except Exception:
             return []
+    
+    def fetch_logs_from_cloud(self, table_name: str, limit: int = 100, filters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """Fetch logs from ClickHouse Cloud with optional filters"""
+        if not self.use_cloud:
+            print("Not connected to ClickHouse Cloud")
+            return []
+        
+        query = f"SELECT * FROM {table_name}"
+        
+        if filters:
+            conditions = []
+            for key, value in filters.items():
+                if isinstance(value, str):
+                    conditions.append(f"{key} = '{value}'")
+                else:
+                    conditions.append(f"{key} = {value}")
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+        
+        # Try to order by timestamp if it exists, otherwise just limit
+        query += f" LIMIT {limit}"
+        
+        # Prioritize HTTP Query API
+        if self.cloud_host and not self.client:
+            result = self._execute_cloud_query(query)
+            return result if result else []
+        elif self.client:
+            # Use native client
+            try:
+                result = self.client.execute(query, with_column_types=True)
+                rows, columns_with_types = result[0], result[1]
+                column_names = [col[0] for col in columns_with_types]
+                return [dict(zip(column_names, row)) for row in rows]
+            except Exception as e:
+                print(f"Error fetching logs: {e}")
+                return []
+        else:
+            # Use HTTP interface
+            result = self._execute_cloud_query(query)
+            return result if result else []
     
     def insert_signature(self, signature: Dict[str, Any]):
         if self.use_mock:
@@ -142,8 +304,11 @@ def get_client() -> ClickHouseClient:
 def insert_event(event: Dict[str, Any]):
     get_client().insert_event(event)
 
-def get_recent_events(limit: int = 20) -> List[Dict[str, Any]]:
-    return get_client().get_recent_events(limit)
+def get_recent_events(limit: int = 20, table_name: str = None) -> List[Dict[str, Any]]:
+    return get_client().get_recent_events(limit, table_name)
+
+def fetch_logs_from_cloud(table_name: str, limit: int = 100, filters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    return get_client().fetch_logs_from_cloud(table_name, limit, filters)
 
 def insert_signature(signature: Dict[str, Any]):
     get_client().insert_signature(signature)

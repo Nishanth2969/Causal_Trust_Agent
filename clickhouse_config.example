@@ -1,0 +1,39 @@
+# ClickHouse Cloud Configuration Example
+# 
+# To use this configuration:
+# 1. Copy this file: cp clickhouse_config.example clickhouse_config.txt
+# 2. Fill in your values
+# 3. Set environment variables before running scripts
+
+# Your ClickHouse Cloud instance hostname
+# Example: abc123.us-east-1.aws.clickhouse.cloud
+# You can find this in your ClickHouse Cloud console
+CLICKHOUSE_CLOUD_HOST=your-instance.clickhouse.cloud
+
+# ClickHouse Cloud API credentials (already set in code)
+CLICKHOUSE_CLOUD_KEY=kRuHI0HdODEAJokHcaTy
+CLICKHOUSE_CLOUD_SECRET=4b1dXAP2m2VaW6vYROdsTDJwMk80Cle9ABGhgAEMlh
+
+# ClickHouse Cloud port (default: 9440 for secure native protocol)
+CLICKHOUSE_CLOUD_PORT=9440
+
+# Table name containing your logs
+# Run discover_clickhouse_tables.py to find available tables
+CLICKHOUSE_TABLE_NAME=logs
+
+# =============================================================================
+# How to set these on different operating systems:
+# =============================================================================
+
+# Windows PowerShell:
+# $env:CLICKHOUSE_CLOUD_HOST='your-instance.clickhouse.cloud'
+# $env:CLICKHOUSE_TABLE_NAME='logs'
+
+# Linux/Mac:
+# export CLICKHOUSE_CLOUD_HOST='your-instance.clickhouse.cloud'
+# export CLICKHOUSE_TABLE_NAME='logs'
+
+# Windows CMD:
+# set CLICKHOUSE_CLOUD_HOST=your-instance.clickhouse.cloud
+# set CLICKHOUSE_TABLE_NAME=logs
+

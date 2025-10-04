@@ -19,12 +19,12 @@ def run_pipeline_on_event(event: dict, use_adapters: bool = True) -> Dict:
         
         intake_result = intake_agent(run_id, "canary")
         
-        txs = [event]
+        events = [event]
         
         if use_adapters:
-            txs = [apply_adapters(tx) for tx in txs]
+            events = [apply_adapters(evt) for evt in events]
         
-        auditor_result = auditor_agent(run_id, txs)
+        auditor_result = auditor_agent(run_id, events)
         
         latency_ms = int((time.time() - t0) * 1000)
         

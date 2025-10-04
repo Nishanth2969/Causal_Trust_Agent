@@ -1,6 +1,6 @@
 from trace.sdk import trace_step, trace_error
 from trace.store import save_metric, append_event
-from .tools import fetch_transactions, flag_anomaly
+from .tools import fetch_log_events, evaluate_event
 import time
 
 def trace_tool_call(run_id, tool_name, args, fn):
@@ -25,34 +25,34 @@ def intake_agent(run_id, mode):
 @trace_step("Retriever")
 def retriever_agent(run_id, mode):
     flaky = (mode == "flaky")
-    txs = trace_tool_call(
+    events = trace_tool_call(
         run_id, 
-        "fetch_transactions", 
+        "fetch_log_events", 
         [flaky], 
-        lambda: fetch_transactions(flaky=flaky)
+        lambda: fetch_log_events(flaky=flaky)
     )
-    return {"transactions": txs, "count": len(txs)}
+    return {"events": events, "count": len(events)}
 
 @trace_step("Auditor")
-def auditor_agent(run_id, transactions, use_adapters=True):
+def auditor_agent(run_id, events, use_adapters=True):
     from .adapters import apply_adapters
     
     if use_adapters:
-        transactions = [apply_adapters(tx) for tx in transactions]
+        events = [apply_adapters(evt) for evt in events]
     
     results = []
     error_occurred = False
     
-    for tx in transactions:
+    for evt in events:
         try:
             result = trace_tool_call(
                 run_id,
-                "flag_anomaly",
-                [tx],
-                lambda: flag_anomaly(tx)
+                "evaluate_event",
+                [evt],
+                lambda: evaluate_event(evt)
             )
             results.append({
-                "tx_id": tx.get("id"),
+                "event_id": evt.get("LineId"),
                 "flagged": result["flag"],
                 "reason": result["reason"]
             })
@@ -60,11 +60,11 @@ def auditor_agent(run_id, transactions, use_adapters=True):
             error_occurred = True
             trace_error(run_id, str(e), {
                 "agent": "Auditor",
-                "tx_id": tx.get("id"),
-                "tx": tx
+                "event_id": evt.get("LineId"),
+                "event": evt
             })
             results.append({
-                "tx_id": tx.get("id"),
+                "event_id": evt.get("LineId"),
                 "error": str(e)
             })
     
@@ -78,7 +78,7 @@ def run_pipeline(run_id, mode: str, use_adapters: bool = True) -> dict:
     
     retriever_result = retriever_agent(run_id, mode)
     
-    auditor_result = auditor_agent(run_id, retriever_result["transactions"], use_adapters=use_adapters)
+    auditor_result = auditor_agent(run_id, retriever_result["events"], use_adapters=use_adapters)
     
     if auditor_result["error_occurred"]:
         status = "failed"
@@ -90,7 +90,7 @@ def run_pipeline(run_id, mode: str, use_adapters: bool = True) -> dict:
             "status": status,
             "fail_reason": fail_reason,
             "counts": {
-                "transactions": retriever_result["count"],
+                "events": retriever_result["count"],
                 "flagged": sum(1 for r in auditor_result["results"] if r.get("flagged")),
                 "errors": sum(1 for r in auditor_result["results"] if "error" in r)
             }
@@ -103,7 +103,7 @@ def run_pipeline(run_id, mode: str, use_adapters: bool = True) -> dict:
         "status": status,
         "fail_reason": None,
         "counts": {
-            "transactions": retriever_result["count"],
+            "events": retriever_result["count"],
             "flagged": sum(1 for r in auditor_result["results"] if r.get("flagged")),
             "errors": 0
         }

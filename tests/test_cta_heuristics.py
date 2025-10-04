@@ -24,11 +24,11 @@ def test_heuristic_detects_schema_drift():
             "run_id": "test_run",
             "idx": 1,
             "type": "tool",
-            "tool": "fetch_transactions",
+            "tool": "fetch_log_events",
             "args": {"flaky": True},
             "output": [
-                {"id": "T1", "amt": 12.0},
-                {"id": "T2", "amt": 5.5}
+                {"LineId": 1, "level": "INFO", "Component": "nova.compute"},
+                {"LineId": 2, "level": "ERROR", "Component": "nova.api"}
             ]
         },
         {
@@ -36,14 +36,14 @@ def test_heuristic_detects_schema_drift():
             "run_id": "test_run",
             "idx": 2,
             "type": "error",
-            "message": "KeyError: 'amount'",
+            "message": "KeyError: 'Level'",
             "context": {"agent": "Auditor"}
         }
     ]
     
     report = _heuristic_analyze(events, "Schema mismatch")
     
-    assert "amt" in str(report["symptoms"]).lower() or "schema" in str(report["symptoms"]).lower()
+    assert "level" in str(report["symptoms"]).lower() or "schema" in str(report["symptoms"]).lower()
     assert report["confidence"] > 0.5
     assert len(report["why_chain"]) == 5
     assert "tool_1" in report["primary_cause_step_id"]
@@ -55,8 +55,8 @@ def test_heuristic_identifies_error_events():
             "run_id": "test_run",
             "idx": 0,
             "type": "error",
-            "message": "KeyError: 'amount'",
-            "context": {"agent": "Auditor", "tx_id": "T1"}
+            "message": "KeyError: 'Level'",
+            "context": {"agent": "Auditor", "event_id": 1}
         }
     ]
     
@@ -72,16 +72,16 @@ def test_cta_analyze_end_to_end():
         "ts": 1234567890.0,
         "run_id": run_id,
         "type": "tool",
-        "tool": "fetch_transactions",
+        "tool": "fetch_log_events",
         "args": {"flaky": True},
-        "output": [{"id": "T1", "amt": 12.0}]
+        "output": [{"LineId": 1, "level": "INFO", "Component": "nova.compute"}]
     })
     
     append_event(run_id, {
         "ts": 1234567891.0,
         "run_id": run_id,
         "type": "error",
-        "message": "KeyError: 'amount'",
+        "message": "KeyError: 'Level'",
         "context": {"agent": "Auditor"}
     })
     

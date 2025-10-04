@@ -22,27 +22,27 @@ from integrations.clickhouse import insert_event
 def test_parse_adapter_from_report():
     report1 = {
         "proposed_fix": {
-            "tool_schema_patch": "map amt->amount before Auditor"
+            "tool_schema_patch": "map level->Level before Auditor"
         }
     }
     adapter = _parse_adapter_from_report(report1)
-    assert adapter == {"amt": "amount"}
+    assert adapter == {"level": "Level"}
     
     report2 = {
         "proposed_fix": {
-            "tool_schema_patch": "rename 'amt' to 'amount'"
+            "tool_schema_patch": "rename 'level' to 'Level'"
         }
     }
     adapter = _parse_adapter_from_report(report2)
-    assert adapter == {"amt": "amount"}
+    assert adapter == {"level": "Level"}
     
     report3 = {
         "proposed_fix": {
-            "tool_schema_patch": "Add schema adapter: 'amt' → 'amount'"
+            "tool_schema_patch": "Add schema adapter: 'level' → 'Level'"
         }
     }
     adapter = _parse_adapter_from_report(report3)
-    assert adapter == {"amt": "amount"}
+    assert adapter == {"level": "Level"}
 
 def test_apply_patch_creates_adapter():
     clear_adapters()
@@ -51,17 +51,17 @@ def test_apply_patch_creates_adapter():
     
     report = {
         "proposed_fix": {
-            "tool_schema_patch": "map amt->amount"
+            "tool_schema_patch": "map level->Level"
         }
     }
     
     result = apply_patch(run_id, report)
     
     assert result["status"] == "patched"
-    assert result["adapter"] == {"amt": "amount"}
+    assert result["adapter"] == {"level": "Level"}
     
     adapters = get_adapters()
-    assert adapters == {"amt": "amount"}
+    assert adapters == {"level": "Level"}
     
     clear_adapters()
 
@@ -85,9 +85,9 @@ def test_apply_patch_handles_unparseable():
 def test_canary_run_wrapper():
     for i in range(5):
         insert_event({
-            "id": f"T{i}",
-            "amount": 10.0 + i,
-            "currency": "USD",
+            "LineId": i,
+            "Level": "INFO",
+            "Component": "nova.compute",
             "timestamp": time.time()
         })
     
@@ -118,7 +118,7 @@ def test_promote_on_success():
     assert decision["metrics"]["error_rate"] == 0.0
 
 def test_rollback_on_high_error_rate():
-    set_adapter({"amt": "amount"})
+    set_adapter({"level": "Level"})
     
     canary_result = {
         "total": 20,
@@ -138,7 +138,7 @@ def test_rollback_on_high_error_rate():
     assert adapters == {}
 
 def test_rollback_on_high_latency():
-    set_adapter({"amt": "amount"})
+    set_adapter({"level": "Level"})
     
     canary_result = {
         "total": 20,
@@ -162,12 +162,12 @@ def test_create_simple_embedding():
         {
             "type": "error",
             "context": {
-                "tx": {"id": "T1", "amt": 10}
+                "event": {"LineId": 1, "level": "ERROR"}
             }
         },
         {
             "type": "tool",
-            "output": [{"id": "T2", "amt": 20}]
+            "output": [{"LineId": 2, "level": "INFO"}]
         }
     ]
     
@@ -205,9 +205,9 @@ def test_end_to_end_action_loop():
         
         for i in range(5):
             insert_event({
-                "id": f"T{i}",
-                "amt": 10.0 + i,
-                "currency": "USD",
+                "LineId": i,
+                "level": "INFO",
+                "Component": "nova.compute",
                 "timestamp": time.time()
             })
         

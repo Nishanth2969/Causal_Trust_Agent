@@ -29,16 +29,16 @@ def _heuristic_analyze(events, failure_text):
         })
     
     for tool_evt in tool_events:
-        if tool_evt.get("tool") == "fetch_transactions":
+        if tool_evt.get("tool") == "fetch_log_events":
             output = tool_evt.get("output", [])
             if output and isinstance(output, list) and len(output) > 0:
-                first_tx = output[0]
-                if "amt" in first_tx and "amount" not in first_tx:
-                    symptoms.append("Schema drift detected: 'amt' field instead of 'amount'")
+                first_evt = output[0]
+                if "level" in first_evt and "Level" not in first_evt:
+                    symptoms.append("Schema drift detected: 'level' field instead of 'Level'")
                     primary_cause_step_id = f"tool_{tool_evt['idx']}"
                     evidence.append({
                         "step_id": primary_cause_step_id,
-                        "excerpt": f"Transaction has 'amt' field: {json.dumps(first_tx)}"
+                        "excerpt": f"Event has 'level' field: {json.dumps(first_evt)}"
                     })
     
     if not primary_cause_step_id and step_events:
@@ -46,15 +46,15 @@ def _heuristic_analyze(events, failure_text):
     
     why_chain = [
         "Why did the pipeline fail? Because the Auditor agent threw a KeyError.",
-        "Why did it throw a KeyError? Because it tried to access 'amount' field that doesn't exist.",
-        "Why doesn't the field exist? Because fetch_transactions returned 'amt' instead of 'amount'.",
-        "Why did it return 'amt'? Because the flaky mode renames the field to simulate schema drift.",
+        "Why did it throw a KeyError? Because it tried to access 'Level' field that doesn't exist.",
+        "Why doesn't the field exist? Because fetch_log_events returned 'level' instead of 'Level'.",
+        "Why did it return 'level'? Because the flaky mode renames the field to simulate schema drift.",
         "Why is this the root cause? The data contract was violated at the source, not validated at retrieval."
     ]
     
     proposed_fix = {
-        "tool_schema_patch": "Add schema adapter: rename 'amt' -> 'amount' in fetch_transactions output OR validate schema in Retriever agent",
-        "test_case": "Assert all transactions have 'amount' field before passing to Auditor"
+        "tool_schema_patch": "Add schema adapter: rename 'level' -> 'Level' in fetch_log_events output OR validate schema in Retriever agent",
+        "test_case": "Assert all log events have 'Level' field before passing to Auditor"
     }
     
     return {

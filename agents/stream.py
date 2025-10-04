@@ -2,7 +2,7 @@ import threading
 import time
 import random
 from typing import Optional
-from .tools import MERCHANTS
+from .tools import COMPONENTS, LEVELS, ENDPOINTS
 from .failures import get_failure_state
 from integrations.clickhouse import insert_event
 
@@ -14,28 +14,39 @@ class StreamProducer:
         self.total_events = 0
         self.lock = threading.Lock()
     
-    def _generate_transaction(self) -> dict:
+    def _generate_log_event(self) -> dict:
         failure_state = get_failure_state()
         
-        tx = {
-            "id": f"T{random.randint(1000, 9999)}",
-            "currency": "USD",
-            "amount": round(random.uniform(5.0, 50.0), 2),
-            "timestamp": time.time(),
-            "merchant": random.choice(MERCHANTS)
+        latency_ms = random.randint(100, 500)
+        level = random.choice(LEVELS)
+        component = random.choice(COMPONENTS)
+        endpoint = random.choice(ENDPOINTS)
+        status = 200 if level != "ERROR" else random.choice([500, 503, 404])
+        
+        evt = {
+            "LineId": random.randint(1000, 9999),
+            "Date": "2017-05-16",
+            "Time": f"00:00:{random.randint(10,59):02d}.{random.randint(0,999):03d}",
+            "Pid": random.randint(2000, 30000),
+            "Level": level,
+            "Component": component,
+            "Content": f'"GET {endpoint} HTTP/1.1" status: {status} len: {random.randint(500,3000)} time: 0.{latency_ms}',
+            "latency_ms": latency_ms,
+            "status": status,
+            "timestamp": time.time()
         }
         
         if failure_state["schema_drift"]:
-            tx["amt"] = tx.pop("amount")
+            evt["level"] = evt.pop("Level")
         
         if failure_state["currency_mix"] and random.random() < 0.3:
-            tx["currency"] = random.choice(["EUR", "GBP"])
+            evt["status"] = random.choice([500, 503, 504])
         
-        return tx
+        return evt
     
-    def _emit_to_clickhouse(self, tx: dict):
+    def _emit_to_clickhouse(self, evt: dict):
         try:
-            insert_event(tx)
+            insert_event(evt)
         except Exception:
             pass
     
@@ -43,8 +54,8 @@ class StreamProducer:
         interval = 1.0 / self.events_per_second
         
         while self.running:
-            tx = self._generate_transaction()
-            self._emit_to_clickhouse(tx)
+            evt = self._generate_log_event()
+            self._emit_to_clickhouse(evt)
             
             with self.lock:
                 self.total_events += 1

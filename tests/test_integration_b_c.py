@@ -49,8 +49,8 @@ def test_full_autonomous_loop_role_b_and_c():
     
     assert patch_result["status"] == "patched"
     adapters = get_adapters()
-    assert "amt" in adapters
-    assert adapters["amt"] == "amount"
+    assert "level" in adapters
+    assert adapters["level"] == "Level"
     print(f"   Patch applied: {patch_result['adapter']}")
     print(f"   Active adapters: {adapters}")
     
@@ -162,14 +162,14 @@ def test_rollback_on_canary_failure_role_b_and_c():
     print("\n=== Rollback Integration Test ===")
     
     print("\n1. Set up bad adapter that will cause errors")
-    set_adapter({"amount": "bad_field"})
+    set_adapter({"Level": "bad_field"})
     
     print("\n2. Generate events for canary")
     for i in range(10):
         insert_event({
-            "id": f"T{i}",
-            "amount": 10.0 + i,
-            "currency": "USD",
+            "LineId": i,
+            "Level": "INFO",
+            "Component": "nova.compute",
             "timestamp": time.time()
         })
     
@@ -218,21 +218,21 @@ def test_stream_and_adapter_integration():
         first_event = events[0]
         print(f"   Sample event fields: {list(first_event.keys())}")
         
-        has_amt = any("amt" in e for e in events if isinstance(e, dict))
-        print(f"   Contains 'amt' field: {has_amt}")
+        has_level_lower = any("level" in e for e in events if isinstance(e, dict))
+        print(f"   Contains 'level' field: {has_level_lower}")
     
     print("\n2. Apply adapter to fix drift")
-    set_adapter({"amt": "amount"})
+    set_adapter({"level": "Level"})
     
     print("\n3. Test adapter fixes the event")
     from agents.adapters import apply_adapters
     
-    test_event = {"id": "T999", "amt": 42.0, "currency": "USD"}
+    test_event = {"LineId": 999, "level": "ERROR", "Component": "nova.compute"}
     fixed_event = apply_adapters(test_event)
     
-    assert "amount" in fixed_event
-    assert "amt" not in fixed_event
-    assert fixed_event["amount"] == 42.0
+    assert "Level" in fixed_event
+    assert "level" not in fixed_event
+    assert fixed_event["Level"] == "ERROR"
     print(f"   ✓ Adapter fixed: {test_event} → {fixed_event}")
     
     inject_drift(False)
